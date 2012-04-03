@@ -40,7 +40,7 @@ var $tc = (function() {
 	};
 
 	TimeInterval.prototype.toString = function() {
-		_.str.sprintf("%s to %s (%s hrs)", this.begin, this.end, this.diff());
+		return _.str.sprintf("%s to %s (%s hrs)", this.begin, this.end, this.diff());
 	};
 
 
@@ -103,6 +103,26 @@ var $disp = (function() {
 	var DAYS = _.map(DAY_NAMES_ABBRS, function(day){
 		return Array(day[0], day[1], BEGIN_END);
 	});
+
+	function _intervalInputId(abbr) {
+		return _.str.sprintf("#interval-input-%s", abbr);
+	}
+
+	function _time(abbr, beginEnd){
+		var hrOptStr = _.str.sprintf("#hour-select-%s-%s option:selected", abbr, beginEnd);
+		var minOptStr = _.str.sprintf("#minute-select-%s-%s option:selected", abbr, beginEnd);
+
+		var hour = Number($(hrOptStr).val());
+		var minute = Number($(minOptStr).val());
+
+		return new $tc.Time(hour, minute);
+	}
+
+	function _interval(abbr) {
+		var begin = _time(abbr, "begin");
+		var end = _time(abbr, "end");
+		return new $tc.TimeInterval(begin, end);
+	}
 	
 
 	function createDayDivs() {
@@ -121,9 +141,12 @@ var $disp = (function() {
 	}
 
 	function addListeners() {
+		var intervalTemplate = $("#interval-template").html();
 		_.each(DAY_ABBRS, function(abbr){
-			$(_.str.sprintf("#interval-input-%s", abbr)).click(function(){
-				alert(abbr);
+			var intervalList = $(_.str.sprintf("#interval-list-%s", abbr));
+			$(_intervalInputId(abbr)).click(function(){
+				var intvl = _interval(abbr);
+				intervalList.append(Mustache.render(intervalTemplate, {interval: intvl}));
 			});
 		});
 	}
