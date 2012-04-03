@@ -1,3 +1,53 @@
+var $constants = (function(){
+
+	/**
+	* Hours
+	*/
+	var HOUR_DIGITS = new Array(8, 9, 10, 11, 12, 1, 2, 3, 4, 5);
+	var HOUR_DISPS = _.map(HOUR_DIGITS, function(hourDigit){
+		return _.str.sprintf("%s", hourDigit);
+	});
+	var HOURS = _.map(_.zip(HOUR_DIGITS, HOUR_DISPS), function(hr){
+		return {hour: hr[0], hourDisp: hr[1]};
+	});
+
+	/**
+	* Minutes
+	*/
+	var MIN_DIGITS = new Array();
+	var min = 0;
+	while (min < 60) {
+		MIN_DIGITS.push(min);
+		min+=5;
+	}
+	var MIN_DISPS = _.map(MIN_DIGITS, function(minDigit){
+		var prefix = minDigit < 10 ? "0" : "";
+		return _.str.sprintf("%s%d", prefix, minDigit);
+	});
+	var MINS = _.map(_.zip(MIN_DIGITS, MIN_DISPS), function(min){
+		return {minute: min[0], minuteDisp: min[1]};
+	});
+
+	/**
+	* Days
+	*/
+	var DAY_NAMES = new Array("Monday", "Tuesday", "Wednesday", "Thursday", "Friday");
+	var DAY_ABBRS = new Array("mon", "tue", "wed", "thu", "fri");
+	var BEGIN_END = {begin: "begin", end: "end"};
+	var DAYS = _.map(_.zip(DAY_NAMES, DAY_ABBRS), function(day){
+		return {dayName: day[0], dayAbbr: day[1]};
+	});
+
+	return {
+		HOURS: HOURS,
+		MINS: MINS,
+		DAYS: DAYS,
+		DAY_ABBRS: DAY_ABBRS,
+		BEGIN_END: BEGIN_END,
+		HOURS_MINS: {hours: HOURS, minutes: MINS}
+	};
+})();
+
 var $tc = (function() {
 
 	/**
@@ -74,43 +124,14 @@ var $tc = (function() {
 
 var $disp = (function() {
 	
-	var HOUR_DIGITS = new Array(8, 9, 10, 11, 12, 1, 2, 3, 4, 5);
-	var HOUR_DISPS = _.map(HOUR_DIGITS, function(hourDigit){
-		return _.str.sprintf("%s", hourDigit);
-	});
-	var HOURS = _.map(_.zip(HOUR_DIGITS, HOUR_DISPS), function(hr){
-		return {hour: hr[0], hourDisp: hr[1]};
-	});
+	// aliases for frequently-used functions
+	var _render = Mustache.render;
+	var _sprintf = _.str.sprintf;
 
-	var MIN_DIGITS = new Array();
-	var min = 0;
-	while (min < 60) {
-		MIN_DIGITS.push(min);
-		min+=5;
-	}
-	var MIN_DISPS = _.map(MIN_DIGITS, function(minDigit){
-		var prefix = minDigit < 10 ? "0" : "";
-		return _.str.sprintf("%s%d", prefix, minDigit);
-	});
-	var MINS = _.map(_.zip(MIN_DIGITS, MIN_DISPS), function(min){
-		return {minute: min[0], minuteDisp: min[1]};
-	});
-
-	var DAY_NAMES = new Array("Monday", "Tuesday", "Wednesday", "Thursday", "Friday");
-	var DAY_ABBRS = new Array("mon", "tue", "wed", "thu", "fri");
-	var DAY_NAMES_ABBRS = _.zip(DAY_NAMES, DAY_ABBRS);
-	var BEGIN_END = new Array("begin", "end");
-	var DAYS = _.map(DAY_NAMES_ABBRS, function(day){
-		return Array(day[0], day[1], BEGIN_END);
-	});
-
-	function _intervalInputId(abbr) {
-		return _.str.sprintf("#interval-input-%s", abbr);
-	}
-
+	// create a time from input
 	function _time(abbr, beginEnd){
-		var hrOptStr = _.str.sprintf("#hour-select-%s-%s option:selected", abbr, beginEnd);
-		var minOptStr = _.str.sprintf("#minute-select-%s-%s option:selected", abbr, beginEnd);
+		var hrOptStr = _sprintf("#hour-select-%s-%s option:selected", abbr, beginEnd);
+		var minOptStr = _sprintf("#minute-select-%s-%s option:selected", abbr, beginEnd);
 
 		var hour = Number($(hrOptStr).val());
 		var minute = Number($(minOptStr).val());
@@ -118,36 +139,61 @@ var $disp = (function() {
 		return new $tc.Time(hour, minute);
 	}
 
+	// create a time interval from input
 	function _interval(abbr) {
-		var begin = _time(abbr, "begin");
-		var end = _time(abbr, "end");
+		var begin = _time(abbr, $constants.BEGIN_END.begin);
+		var end = _time(abbr, $constants.BEGIN_END.end);
 		return new $tc.TimeInterval(begin, end);
 	}
 	
-
 	function createDayDivs() {
+
+		// main content div
 		var pageContent = $("#page-content");
+
+		// grab templates
 		var dayTemplate = $("#day-template").html();
 		var inputTemplate = $("#time-input-template").html();
-		_.each(DAYS, function(day){
-			pageContent.append(Mustache.render(dayTemplate, {dayName: day[0], dayAbbr: day[1]}));
-			var intervalInput = $(_.str.sprintf("#interval-input-%s", day[1]));
-			_.each(_.map(day[2], function(beginEnd){
-				return Mustache.render(inputTemplate, {dayName: day[0], dayAbbr: day[1], beginEnd: beginEnd, hours: HOURS, minutes: MINS});
-			}).reverse(), function(input){
-				intervalInput.prepend(input);
+		var submitTemplate = $("#interval-submit-template").html();
+
+		_.each($constants.DAYS, function(day){
+
+			// render day
+			pageContent.append(_render(dayTemplate, day));
+
+			// render day input
+			var intervalInput = $(_sprintf("#interval-input-%s", day.dayAbbr));
+			_.each(_.map(_.values($constants.BEGIN_END), function(beginEnd){
+
+				var inputTemplateData = _.extend(_.clone(day), {beginEnd: beginEnd}, $constants.HOURS_MINS);
+				return _render(inputTemplate, inputTemplateData);
+
+			}), function(input){
+
+				intervalInput.append(input);
+
 			});
+			intervalInput.append(_render(submitTemplate, day));
+
 		});
 	}
 
 	function addListeners() {
+
+		// grab template
 		var intervalTemplate = $("#interval-template").html();
-		_.each(DAY_ABBRS, function(abbr){
-			var intervalList = $(_.str.sprintf("#interval-list-%s", abbr));
-			$(_intervalInputId(abbr)).click(function(){
+
+		// attach listeners to "add" buttons
+		_.each($constants.DAY_ABBRS, function(abbr){
+
+			var intervalList = $(_sprintf("#interval-list-%s", abbr));
+			$(_sprintf("#interval-submit-%s", abbr)).click(function(){
+
 				var intvl = _interval(abbr);
-				intervalList.append(Mustache.render(intervalTemplate, {interval: intvl}));
+				intervalList.append(_render(intervalTemplate, {interval: intvl}));
+
 			});
+
 		});
 	}
 

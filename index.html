@@ -39,18 +39,19 @@
 
 		</script>
 
+		<script type="text/template" id="interval-submit-template">
+
+			<input type="button" id="interval-submit-{{dayAbbr}}" value="Add"/>
+
+		</script>
+
 		<script type="text/template" id="day-template">
 
 			<div class="day" id="day-{{dayAbbr}}">
 				<span class="day-name">{{dayName}}</span>
-				<ul id="interval-list-{{dayAbbr}}">
-
-				</ul>
-				<div class="interval-input" id="interval-input-{{dayAbbr}}">
-
-					<input type="button" id="interval-submit-{{dayAbbr}}" value="Add"/>
-
-				</div>
+				<span class="day-total" id="day-total-{{dayAbbr}}"></span>
+				<ul class="interval-list" id="interval-list-{{dayAbbr}}"></ul>
+				<div class="interval-input" id="interval-input-{{dayAbbr}}"></div>
 			</div>
 
 		</script>
