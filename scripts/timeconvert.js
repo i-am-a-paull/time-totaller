@@ -72,8 +72,20 @@ var $tc = (function() {
 	};
 
 	Time.prototype.diff = function(otherTime) {
-		var diff = otherTime.toDecimal() - this.toDecimal();
-		return Math.round(Math.abs(diff)*4)/4;
+		var diff = this.toDecimal() - otherTime.toDecimal();
+		return Math.round(diff*4)/4;
+	};
+
+	Time.prototype.lessThan = function(otherTime) {
+		return this.diff(otherTime) < 0;
+	};
+
+	Time.prototype.greaterThan = function(otherTime) {
+		return this.diff(otherTime) > 0;
+	};
+
+	Time.prototype.equals = function(otherTime) {
+		return this.hour == otherTime.hour && this.minute == otherTime.minute;
 	};
 
 
@@ -93,6 +105,16 @@ var $tc = (function() {
 		return _.str.sprintf("%s to %s (%s hrs)", this.begin, this.end, this.diff());
 	};
 
+	TimeInterval.prototype.equals = function(otherInterval) {
+		return this.begin.equals(otherInterval.begin) && this.end.equals(otherInterval.end);
+	};
+
+	TimeInterval.prototype.overlaps = function(otherInterval) {
+		return this.equals(otherInterval) 
+			|| this.begin.lessThan(otherInterval.end) 
+			|| this.end.greaterThan(otherInterval.begin);
+	};
+
 
 	/**
 	* useful functions
@@ -107,11 +129,6 @@ var $tc = (function() {
 			return memo + interval.diff();
 		}, 0.0);
 	}
-
-	// var intv1 = interval(8,30,12,0);
-	// var intv2 = interval(1,0,5,0);
-
-	// alert(total([intv1, intv2]));
 
 	return {
 		Time: Time,
@@ -204,5 +221,56 @@ var $disp = (function() {
 
 })();
 
-$($disp.createDayDivs);
-$($disp.addListeners);
+var $tc_test = (function(){
+	var TEST = true;
+	var ALERT_IF_PASSED = false;
+
+	function assert(caseName, expected, expression) {
+		var passed = expected == expression;
+		if (!passed || ALERT_IF_PASSED){
+			var passFail = passed ? "PASSED": "FAILED";
+			alert(_.str.sprintf("%s %s, expected: %s, got: %s", caseName, passFail, expected, expression));
+		}
+		return passed;
+	}
+
+	function runTests() {
+
+		var time1 = new $tc.Time(8, 30);
+		var time2 = new $tc.Time(1, 45);
+
+		assert("time1 - time2 == -5.25", -5.25, time1.diff(time2));
+		assert("time2 - time1 == 5.25", 5.25, time2.diff(time1));
+		assert("time1 == time1", true, time1.equals(time1));
+		assert("time1 == time2", false, time1.equals(time2));
+		assert("time1 > time2", false, time1.greaterThan(time2));
+		assert("time1 < time2", true, time1.lessThan(time2));
+		assert("time2 > time1", true, time2.greaterThan(time1));
+		assert("time2 < time1", false, time2.lessThan(time1));
+
+		var int1 = $tc.interval(8,30,9,0);
+		var int2 = $tc.interval(8,45,9,15);
+		var int3 = $tc.interval(8,35,8,40);
+		assert("int1 == int1", true, int1.equals(int1));
+		assert("int1 == int2", false, int1.equals(int2));
+		assert("int1 overlaps int2", true, int1.overlaps(int2));
+		assert("int2 overlaps int1", true, int2.overlaps(int1));
+		assert("int1 overlaps int3", true, int1.overlaps(int3));
+		assert("int3 overlaps int1", true, int3.overlaps(int1));
+		assert("int2 overlaps int3", false, int2.overlaps(int3));
+		assert("int3 overlaps int2", false, int3.overlaps(int2));
+
+		return true;
+	}
+
+	return {
+		TEST: TEST,
+		runTests: runTests
+	};
+
+})();
+
+if (!($tc_test.TEST && $tc_test.runTests())){
+	$($disp.createDayDivs);
+	$($disp.addListeners);
+}
