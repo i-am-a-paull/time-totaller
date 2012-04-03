@@ -1,144 +1,139 @@
-$(function() {
+var $tc = (function() {
 
-	var Time = Backbone.Model.extend({
+	/**
+	* class Time
+	**/
+	function Time(hour, minute) {
+		this.hour = hour;
+		this.minute = minute;
+	}
 
-		defaults: {
-			hr: 8,
-			min: 30
-		},
+	Time.prototype.toDecimal = function() {
+		var hr = this.hour;
+		hr = hr < 8 ? hr+=12 : hr;
+		hr += this.minute/60.0;
+		return hr;
+	};
 
-		toString: function() {
-			var hr = this.get("hr");
-			var ampm = hr >= 8 && hr < 12 ? "am" : "pm";
-			var min = this.get("min");
-			var minPrefix = min < 10 ? "0" : "";
-			return _.str.sprintf("%d:%s%d %s", this.get("hr"), minPrefix, min, ampm);
-		},
+	Time.prototype.toString = function() {
+		var minPrefix = this.minute < 10 ? "0" : "";
+		var ampm = this.hour >= 8 && this.hour < 12 ? "am" : "pm";
+		return _.str.sprintf("%d:%s%d %s", this.hour, minPrefix, this.minute, ampm);
+	};
 
-		toDecimal: function() {
-			var hr = this.get("hr");
-			hr = hr < 8 ? hr+=12 : hr;
-			hr += this.get("min")/60.0;
-			return hr;
-		},
+	Time.prototype.diff = function(otherTime) {
+		var diff = otherTime.toDecimal() - this.toDecimal();
+		return Math.round(Math.abs(diff)*4)/4;
+	};
 
-		diff: function(otherTime) {
-			var diff = otherTime.toDecimal() - this.toDecimal();
-			return Math.round(Math.abs(diff)*4)/4;
-		}
 
+	/**
+	* class TimeInterval
+	**/
+	function TimeInterval(begin, end) {
+		this.begin = begin;
+		this.end = end;
+	}
+
+	TimeInterval.prototype.diff = function() {
+		return this.end.diff(this.begin);
+	};
+
+	TimeInterval.prototype.toString = function() {
+		_.str.sprintf("%s to %s (%s hrs)", this.begin, this.end, this.diff());
+	};
+
+
+	/**
+	* useful functions
+	**/
+	function interval(beginHr, beginMin, endHr, endMin) {
+		return new TimeInterval(new Time(beginHr, beginMin), 
+								new Time(endHr, endMin));
+	}
+
+	function total(intervals){
+		return _.reduce(intervals, function(memo, interval){
+			return memo + interval.diff();
+		}, 0.0);
+	}
+
+	// var intv1 = interval(8,30,12,0);
+	// var intv2 = interval(1,0,5,0);
+
+	// alert(total([intv1, intv2]));
+
+	return {
+		Time: Time,
+		TimeInterval: TimeInterval,
+		interval: interval,
+		total: total
+	};
+
+})();
+
+var $disp = (function() {
+	
+	var HOUR_DIGITS = new Array(8, 9, 10, 11, 12, 1, 2, 3, 4, 5);
+	var HOUR_DISPS = _.map(HOUR_DIGITS, function(hourDigit){
+		return _.str.sprintf("%s", hourDigit);
+	});
+	var HOURS = _.map(_.zip(HOUR_DIGITS, HOUR_DISPS), function(hr){
+		return {hour: hr[0], hourDisp: hr[1]};
 	});
 
-	var TimeInterval = Backbone.Model.extend({
-
-		defaults: {
-			begin: new Time({hr: 8, min: 30}),
-			end: new Time({hr: 12, min: 0})
-		},
-
-		toString: function() {
-			return _.str.sprintf("%s to %s (%s hrs)", this.get("begin"), this.get("end"), this.diff());
-		},
-
-		diff: function() {
-			return this.get("end").diff(this.get("begin"));
-		}
-
+	var MIN_DIGITS = new Array();
+	var min = 0;
+	while (min < 60) {
+		MIN_DIGITS.push(min);
+		min+=5;
+	}
+	var MIN_DISPS = _.map(MIN_DIGITS, function(minDigit){
+		var prefix = minDigit < 10 ? "0" : "";
+		return _.str.sprintf("%s%d", prefix, minDigit);
+	});
+	var MINS = _.map(_.zip(MIN_DIGITS, MIN_DISPS), function(min){
+		return {minute: min[0], minuteDisp: min[1]};
 	});
 
-	function interval(startHr, startMin, endHr, endMin){
-		return new TimeInterval({
-			begin: new Time({hr: startHr, min: startMin}), 
-			end: new Time({hr: endHr, min: endMin}) 
+	var DAY_NAMES = new Array("Monday", "Tuesday", "Wednesday", "Thursday", "Friday");
+	var DAY_ABBRS = new Array("mon", "tue", "wed", "thu", "fri");
+	var DAY_NAMES_ABBRS = _.zip(DAY_NAMES, DAY_ABBRS);
+	var BEGIN_END = new Array("begin", "end");
+	var DAYS = _.map(DAY_NAMES_ABBRS, function(day){
+		return Array(day[0], day[1], BEGIN_END);
+	});
+	
+
+	function createDayDivs() {
+		var pageContent = $("#page-content");
+		var dayTemplate = $("#day-template").html();
+		var inputTemplate = $("#time-input-template").html();
+		_.each(DAYS, function(day){
+			pageContent.append(Mustache.render(dayTemplate, {dayName: day[0], dayAbbr: day[1]}));
+			var intervalInput = $(_.str.sprintf("#interval-input-%s", day[1]));
+			_.each(_.map(day[2], function(beginEnd){
+				return Mustache.render(inputTemplate, {dayName: day[0], dayAbbr: day[1], beginEnd: beginEnd, hours: HOURS, minutes: MINS});
+			}).reverse(), function(input){
+				intervalInput.prepend(input);
+			});
 		});
 	}
 
-	var IntervalGroup = Backbone.Collection.extend({
-
-		model: TimeInterval,
-
-		total: function() {
-			return this.reduce(function(memo, interval) { 
-				return memo + interval.diff(); 
-			}, 0.0);
-		}
-
-	});
-
-	var hrs = new Array(8, 9, 10, 11, 12, 1, 2, 3, 4, 5);
-
-	var mins = new Array();
-	var min = 0;
-	while (min < 60) {
-		mins.push(min);
-		min+=5;
+	function addListeners() {
+		_.each(DAY_ABBRS, function(abbr){
+			$(_.str.sprintf("#interval-input-%s", abbr)).click(function(){
+				alert(abbr);
+			});
+		});
 	}
 
-	var days = new Array("Monday", "Tuesday", "Wednesday", "Thursday", "Friday");
+	return {
+		createDayDivs: createDayDivs,
+		addListeners: addListeners
+	};
 
-	var dayAbbrs = new Array("mon", "tue", "wed", "thu", "fri");
+})();
 
-	var DayModel = Backbone.Model.extend({
-
-		defaults: {
-			dayName: "Monday",
-			dayAbbr: "mon"
-		},
-
-		toString: function() {
-			return _.str.sprintf("%s (%s)", this.get("dayName"), this.get("dayAbbr"));
-		}
-
-	});
-
-	var Days = Backbone.Collection.extend({model: DayModel});
-
-	var dayModels = new Days;
-	_.each(_.zip(days, dayAbbrs), function(a){
-		dayModels.add(new DayModel({dayName: a[0], dayAbbr: a[1]}));
-	});
-
-	var DayView = Backbone.View.extend({
-
-		tagName: "div",
-
-		className: "day",
-
-		initialize: function(){
-			this.el = _.str.sprintf("#day-%s", this.model.get("dayAbbr"));
-		},
-
-		template: _.template($("#day-template").html()),
-
-		render: function() {
-			this.$el.html(this.template(this.model.toJSON()));
-			return this;
-		}
-
-	});
-
-	var dayViews = dayModels.map(function(dayModel) {
-		return new DayView({model: dayModel});
-	});
-
-	var AppView = Backbone.View.extend({
-
-		tagName: "div",
-
-		el: "#main",
-
-		initialize: function() {
-			this.render();
-		},
-
-		render: function() {
-			
-		}
-
-	});
-
-	var appView = new AppView;
-
-	appView.$el.show();
-
-});
+$($disp.createDayDivs);
+$($disp.addListeners);

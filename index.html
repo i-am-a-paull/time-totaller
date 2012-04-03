@@ -4,12 +4,11 @@
 
 		<title>Time Converter</title>
 
-		<script type="text/javascript" src="scripts/date.js"></script>
-		<script type="text/javascript" src="scripts/jquery-1.7.1.min.js"></script>
-		<script type="text/javascript" src="scripts/json2.js"></script>
 		<script type="text/javascript" src="scripts/underscore-1.3.1.js"></script>
 		<script type="text/javascript" src="scripts/underscore.string-2.0.0.js"></script>
-		<script type="text/javascript" src="scripts/backbone-0.9.2.js"></script>
+		<script type="text/javascript" src="scripts/date.js"></script>
+		<script type="text/javascript" src="scripts/mustache.js"></script>
+		<script type="text/javascript" src="scripts/jquery-1.7.1.min.js"></script>
 		<script type="text/javascript" src="scripts/timeconvert.js"></script>
 
 	</head>
@@ -18,27 +17,39 @@
 
 		<script type="text/template" id="time-input-template">
 
-			<span class="time-input" id="time-input-<%= dayAbbr %>-<%= beginEnd %>">
-				Begin:
-				<select id="hour-select-<%= dayAbbr %>-<%= beginEnd %>"></select>
-				<select id="minute-select-<%= dayAbbr %>-<%= beginEnd %>"></select>
+			<span class="time-input" id="time-input-{{dayAbbr}}-{{beginEnd}}">
+				<label>{{beginEnd}}</label>
+				<select id="hour-select-{{dayAbbr}}-{{beginEnd}}">
+					{{#hours}}
+						<option value="{{hour}}">{{hourDisp}}</option>
+					{{/hours}}
+				</select>
+				<select id="minute-select-{{dayAbbr}}-{{beginEnd}}">
+					{{#minutes}}
+						<option value="{{minute}}">{{minuteDisp}}</option>
+					{{/minutes}}
+				</select>
 			</span>
 
 		</script>
 
 		<script type="text/template" id="day-template">
 
-			<div class="day" id="day-<%= dayAbbr %>">
-				<span class="day-name"><%= dayName %></span>
-				<ul id="interval-list-<%= dayAbbr %>">
+			<div class="day" id="day-{{dayAbbr}}">
+				<span class="day-name">{{dayName}}</span>
+				<ul id="interval-list-{{dayAbbr}}">
 
 				</ul>
-				<div class="interval-input">
+				<div class="interval-input" id="interval-input-{{dayAbbr}}">
+
+					<input type="button" id="interval-submit-{{dayAbbr}}" value="Add"/>
 
 				</div>
 			</div>
 
 		</script>
+
+		<div id="page-content"></div>
 		
 	</body>
 
