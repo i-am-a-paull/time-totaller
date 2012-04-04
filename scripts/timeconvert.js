@@ -165,6 +165,14 @@ var $tc = (function() {
 		});
 	};
 
+	IntervalGroup.prototype.total = function() {
+		var rawTotal = _.reduce(this.intervals, function(memo, interval){
+			return memo + interval.diff();
+		}, 0.0);
+
+		return Math.floor(rawTotal*4)/4;
+	};
+
 
 	/**
 	* useful functions
@@ -174,20 +182,13 @@ var $tc = (function() {
 								new Time(endHr, endMin));
 	}
 
-	function total(intervals){
-		var grandTotal = _.reduce(intervals, function(memo, interval){
-			return memo + interval.diff();
-		}, 0.0);
 
-		var roundedTotal = Math.round(grandTotal*4)/4;
-		return roundedTotal;
-	}
-
+	// public functions
 	return {
 		Time: Time,
 		TimeInterval: TimeInterval,
-		interval: interval,
-		total: total
+		IntervalGroup: IntervalGroup,
+		interval: interval
 	};
 
 })();
@@ -198,9 +199,9 @@ var $disp = (function() {
 	var _render = Mustache.render;
 	var _sprintf = _.str.sprintf;
 
-	var intsByDay = {};
+	var groups = {};
 	_.each($constants.DAY_ABBRS, function(abbr){
-		intsByDay[abbr] = new Array();
+		groups[abbr] = new $tc.IntervalGroup();
 	});
 
 	// create a time from input
@@ -221,10 +222,6 @@ var $disp = (function() {
 		return new $tc.TimeInterval(begin, end);
 	}
 
-	function _total(abbr) {
-		return $tc.total(intsByDay[abbr]);
-	}
-
 	function _renderIntervals(abbr) {
 
 		var intervalList = $(_sprintf("#interval-list-%s", abbr));
@@ -233,7 +230,7 @@ var $disp = (function() {
 		// grab template
 		var intervalTemplate = $("#interval-template").html();
 
-		_.each(intsByDay[abbr], function(interval){
+		_.each(groups[abbr].intervals, function(interval){
 			intervalList.append(_render(intervalTemplate, {interval: interval}));
 		});
 		
@@ -243,7 +240,7 @@ var $disp = (function() {
 
 		var dayTotalSpan = $(_sprintf("#day-total-value-%s", abbr));
 		dayTotalSpan.empty();
-		dayTotalSpan.append(_total(abbr));
+		dayTotalSpan.append(groups[abbr].total());
 
 	}
 
@@ -304,7 +301,7 @@ var $disp = (function() {
 			$(_sprintf("#interval-submit-%s", abbr)).click(function(){
 
 				var interval = _interval(abbr);
-				intsByDay[abbr].push(interval);
+				groups[abbr].add(interval);
 				_renderIntervals(abbr);
 				_renderDayTotal(abbr);
 				_renderWeekTotal();
