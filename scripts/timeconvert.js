@@ -1,11 +1,23 @@
+var $tc_util = (function(){
+
+	function clockMod(hour) {
+		var mod = hour%12;
+		return mod == 0 ? 12 : mod;
+	}
+
+	return {
+		clockMod: clockMod
+	};
+})();
+
 var $constants = (function(){
 
 	/**
 	* Hours
 	*/
-	var HOUR_DIGITS = new Array(8, 9, 10, 11, 12, 1, 2, 3, 4, 5);
+	var HOUR_DIGITS = _.range(8, 18);
 	var HOUR_DISPS = _.map(HOUR_DIGITS, function(hourDigit){
-		return _.str.sprintf("%s", hourDigit);
+		return _.str.sprintf("%s", $tc_util.clockMod(hourDigit));
 	});
 	var HOURS = _.map(_.zip(HOUR_DIGITS, HOUR_DISPS), function(hr){
 		return {hour: hr[0], hourDisp: hr[1]};
@@ -33,7 +45,9 @@ var $constants = (function(){
 	*/
 	var DAY_NAMES = new Array("Monday", "Tuesday", "Wednesday", "Thursday", "Friday");
 	var DAY_ABBRS = new Array("mon", "tue", "wed", "thu", "fri");
-	var BEGIN_END = {begin: "begin", end: "end"};
+	var BEGIN = "begin";
+	var END = "end";
+	var BEGIN_END = {begin: BEGIN, end: END};
 	var DAYS = _.map(_.zip(DAY_NAMES, DAY_ABBRS), function(day){
 		return {dayName: day[0], dayAbbr: day[1]};
 	});
@@ -43,8 +57,11 @@ var $constants = (function(){
 		MINS: MINS,
 		DAYS: DAYS,
 		DAY_ABBRS: DAY_ABBRS,
+		BEGIN: BEGIN,
+		END: END,
 		BEGIN_END: BEGIN_END,
-		HOURS_MINS: {hours: HOURS, minutes: MINS}
+		HOURS_MINS: {hours: HOURS, minutes: MINS},
+		MAX_HR: 17.917 // about 5:55 pm, the highest possible time that can be entered
 	};
 })();
 
@@ -60,16 +77,13 @@ var $tc = (function() {
 	}
 
 	Time.prototype.toDecimal = function() {
-		var hr = this.hour;
-		hr = hr < 8 ? hr+=12 : hr;
-		hr += this.minute/60.0;
-		return hr;
+		return this.hour + this.minute/60.0;
 	};
 
 	Time.prototype.toString = function() {
 		var minPrefix = this.minute < 10 ? "0" : "";
-		var ampm = this.hour >= 8 && this.hour < 12 ? "am" : "pm";
-		return _.str.sprintf("%d:%s%d %s", this.hour, minPrefix, this.minute, ampm);
+		var ampm = this.hour < 12 ? "am" : "pm";
+		return _.str.sprintf("%d:%s%d %s", $tc_util.clockMod(this.hour), minPrefix, this.minute, ampm);
 	};
 
 	Time.prototype.diff = function(otherTime) {
@@ -206,20 +220,35 @@ var $disp = (function() {
 
 	// create a time from input
 	function _time(abbr, beginEnd){
-		var hrOptStr = _sprintf("#hour-select-%s-%s option:selected", abbr, beginEnd);
-		var minOptStr = _sprintf("#minute-select-%s-%s option:selected", abbr, beginEnd);
-
-		var hour = Number($(hrOptStr).val());
-		var minute = Number($(minOptStr).val());
+		var hour = Number($(_sprintf("#hour-select-%s-%s", abbr, beginEnd)).val());
+		var minute = Number($(_sprintf("#minute-select-%s-%s", abbr, beginEnd)).val());
 
 		return new $tc.Time(hour, minute);
 	}
 
 	// create a time interval from input
 	function _interval(abbr) {
-		var begin = _time(abbr, $constants.BEGIN_END.begin);
-		var end = _time(abbr, $constants.BEGIN_END.end);
+		var begin = _time(abbr, $constants.BEGIN);
+		var end = _time(abbr, $constants.END);
 		return new $tc.TimeInterval(begin, end);
+	}
+
+	function _setSelect(abbr, beginEnd, hour, minute) {
+		$(_sprintf("#hour-select-%s-%s", abbr, beginEnd)).val(hour);
+		$(_sprintf("#minute-select-%s-%s", abbr, beginEnd)).val(minute);
+
+		if (beginEnd == $constants.BEGIN) {
+			_autoAdvanceEnd(abbr);
+		}
+	}
+
+	function _autoAdvanceEnd(abbr) {
+		var begin = _time(abbr, $constants.BEGIN);
+		var end = _time(abbr, $constants.END);
+
+		if (end.lessThan(begin)){
+			_setSelect(abbr, $constants.END, begin.hour + 1, begin.minute);
+		}
 	}
 
 	function _renderIntervals(abbr) {
@@ -247,7 +276,7 @@ var $disp = (function() {
 	function _renderWeekTotal() {
 
 		var grandTotal = _.reduce(_.map($constants.DAY_ABBRS, function(abbr){
-			return _total(abbr);
+			return groups[abbr].total();
 		}), function(memo, total){
 			return memo + total;
 		}, 0.0);
@@ -291,6 +320,12 @@ var $disp = (function() {
 		});
 
 		pageContent.append(_render(weekTemplate));
+
+		_.each($constants.DAY_ABBRS, function(abbr){
+			_setSelect(abbr, $constants.BEGIN, 8, 30);
+			_setSelect(abbr, $constants.END, 12, 0);
+		});
+
 	}
 
 	function addListeners() {
@@ -298,14 +333,26 @@ var $disp = (function() {
 		// attach listeners to "add" buttons
 		_.each($constants.DAY_ABBRS, function(abbr){
 
+			var autoAdvance = function() {
+				_autoAdvanceEnd(abbr);
+			};
+			$(_sprintf("#hour-select-%s-begin", abbr)).change(autoAdvance);
+			$(_sprintf("#minute-select-%s-begin", abbr)).change(autoAdvance);
+
 			$(_sprintf("#interval-submit-%s", abbr)).click(function(){
 
 				var interval = _interval(abbr);
-				groups[abbr].add(interval);
-				_renderIntervals(abbr);
-				_renderDayTotal(abbr);
-				_renderWeekTotal();
+				if (!groups[abbr].add(interval)){
+					alert("Time intervals cannot overlap!");
+				}
+				else {
+					_renderIntervals(abbr);
+					_renderDayTotal(abbr);
+					_renderWeekTotal();
 
+					var max = groups[abbr].max().end;
+					_setSelect(abbr, $constants.BEGIN, max.hour + 1, max.minute);
+				}
 			});
 
 		});
@@ -334,7 +381,7 @@ var $tc_test = (function(){
 	function runTests() {
 
 		var time1 = new $tc.Time(8, 30);
-		var time2 = new $tc.Time(1, 45);
+		var time2 = new $tc.Time(13, 45);
 
 		assert("time1 - time2 == -5.25", -5.25, time1.diff(time2));
 		assert("time2 - time1 == 5.25", 5.25, time2.diff(time1));

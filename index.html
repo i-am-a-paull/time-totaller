@@ -24,14 +24,14 @@
 
 		<script type="text/template" id="time-input-template">
 
-			<span class="time-input" id="time-input-{{dayAbbr}}-{{beginEnd}}">
+			<span class="time-input time-input-{{beginEnd}}" id="time-input-{{dayAbbr}}-{{beginEnd}}">
 				<label>{{beginEnd}}</label>
-				<select id="hour-select-{{dayAbbr}}-{{beginEnd}}">
+				<select class="hour-select" id="hour-select-{{dayAbbr}}-{{beginEnd}}">
 					{{#hours}}
 						<option value="{{hour}}">{{hourDisp}}</option>
 					{{/hours}}
 				</select>
-				<select id="minute-select-{{dayAbbr}}-{{beginEnd}}">
+				<select class="minute-select" id="minute-select-{{dayAbbr}}-{{beginEnd}}">
 					{{#minutes}}
 						<option value="{{minute}}">{{minuteDisp}}</option>
 					{{/minutes}}
