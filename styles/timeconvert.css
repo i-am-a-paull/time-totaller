@@ -1,0 +1,14 @@
+.day {
+	width: 400px;
+	margin-bottom: 20px;
+	padding: 5px;
+	outline: 1px solid #000;
+}
+
+.day-name, #week {
+	font-weight: bold;
+}
+
+.time-input {
+	margin: 0 10px 0 0;
+}

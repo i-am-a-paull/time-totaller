@@ -56,6 +56,7 @@ var $tc = (function() {
 	function Time(hour, minute) {
 		this.hour = hour;
 		this.minute = minute;
+		this.uid = _.uniqueId("time_");
 	}
 
 	Time.prototype.toDecimal = function() {
@@ -73,7 +74,7 @@ var $tc = (function() {
 
 	Time.prototype.diff = function(otherTime) {
 		var diff = this.toDecimal() - otherTime.toDecimal();
-		return Math.round(diff*4)/4;
+		return diff;
 	};
 
 	Time.prototype.lessThan = function(otherTime) {
@@ -85,7 +86,8 @@ var $tc = (function() {
 	};
 
 	Time.prototype.equals = function(otherTime) {
-		return this.hour == otherTime.hour && this.minute == otherTime.minute;
+		return this.uid == otherTime.uid 
+			|| (this.hour == otherTime.hour && this.minute == otherTime.minute);
 	};
 
 
@@ -95,6 +97,7 @@ var $tc = (function() {
 	function TimeInterval(begin, end) {
 		this.begin = begin;
 		this.end = end;
+		this.uid = _.uniqueId("timeinterval_");
 	}
 
 	TimeInterval.prototype.diff = function() {
@@ -106,13 +109,60 @@ var $tc = (function() {
 	};
 
 	TimeInterval.prototype.equals = function(otherInterval) {
-		return this.begin.equals(otherInterval.begin) && this.end.equals(otherInterval.end);
+		return this.uid = otherInterval.uid 
+			|| (this.begin.equals(otherInterval.begin) && this.end.equals(otherInterval.end));
 	};
 
 	TimeInterval.prototype.overlaps = function(otherInterval) {
-		return this.equals(otherInterval) 
-			|| this.begin.lessThan(otherInterval.end) 
-			|| this.end.greaterThan(otherInterval.begin);
+		return !otherInterval.end.lessThan(this.begin) && !this.end.lessThan(otherInterval.begin);
+	};
+
+
+	/**
+	* class IntervalGroup
+	**/
+	function IntervalGroup() {
+		this.intervals = new Array();
+	}
+
+	IntervalGroup.prototype.add = function(interval) {
+		var canAdd = _.isEmpty(_.filter(this.intervals, function(intvl){
+			return intvl.overlaps(interval);
+		}));
+
+		if (canAdd){
+			this.intervals.push(interval);
+			return true;
+		}
+
+		return false;
+	};
+
+	IntervalGroup.prototype.has = function(interval) {
+		return !_.isEmpty(_.filter(this.intervals, function(intvl){
+			return intvl.equals(interval);
+		}));
+	};
+
+	IntervalGroup.prototype.remove = function(interval) {
+		if (this.has(interval)){
+			this.intervals.pop(interval);
+			return true;
+		}
+
+		return false;
+	};
+
+	IntervalGroup.prototype.min = function() {
+		return _.min(this.intervals, function(interval){
+			return interval.begin.toDecimal();
+		});
+	};
+
+	IntervalGroup.prototype.max = function() {
+		return _.max(this.intervals, function(interval){
+			return interval.end.toDecimal();
+		});
 	};
 
 
@@ -125,9 +175,12 @@ var $tc = (function() {
 	}
 
 	function total(intervals){
-		return _.reduce(intervals, function(memo, interval){
+		var grandTotal = _.reduce(intervals, function(memo, interval){
 			return memo + interval.diff();
 		}, 0.0);
+
+		var roundedTotal = Math.round(grandTotal*4)/4;
+		return roundedTotal;
 	}
 
 	return {
@@ -144,6 +197,11 @@ var $disp = (function() {
 	// aliases for frequently-used functions
 	var _render = Mustache.render;
 	var _sprintf = _.str.sprintf;
+
+	var intsByDay = {};
+	_.each($constants.DAY_ABBRS, function(abbr){
+		intsByDay[abbr] = new Array();
+	});
 
 	// create a time from input
 	function _time(abbr, beginEnd){
@@ -162,13 +220,54 @@ var $disp = (function() {
 		var end = _time(abbr, $constants.BEGIN_END.end);
 		return new $tc.TimeInterval(begin, end);
 	}
+
+	function _total(abbr) {
+		return $tc.total(intsByDay[abbr]);
+	}
+
+	function _renderIntervals(abbr) {
+
+		var intervalList = $(_sprintf("#interval-list-%s", abbr));
+		intervalList.empty();
+
+		// grab template
+		var intervalTemplate = $("#interval-template").html();
+
+		_.each(intsByDay[abbr], function(interval){
+			intervalList.append(_render(intervalTemplate, {interval: interval}));
+		});
+		
+	}
+
+	function _renderDayTotal(abbr) {
+
+		var dayTotalSpan = $(_sprintf("#day-total-value-%s", abbr));
+		dayTotalSpan.empty();
+		dayTotalSpan.append(_total(abbr));
+
+	}
+
+	function _renderWeekTotal() {
+
+		var grandTotal = _.reduce(_.map($constants.DAY_ABBRS, function(abbr){
+			return _total(abbr);
+		}), function(memo, total){
+			return memo + total;
+		}, 0.0);
+
+		var weekTotalSpan = $("#week-total-value");
+		weekTotalSpan.empty();
+		weekTotalSpan.append(grandTotal);		
+
+	}
 	
-	function createDayDivs() {
+	function initialPageRender() {
 
 		// main content div
 		var pageContent = $("#page-content");
 
 		// grab templates
+		var weekTemplate = $("#week-total-template").html();
 		var dayTemplate = $("#day-template").html();
 		var inputTemplate = $("#time-input-template").html();
 		var submitTemplate = $("#interval-submit-template").html();
@@ -193,21 +292,22 @@ var $disp = (function() {
 			intervalInput.append(_render(submitTemplate, day));
 
 		});
+
+		pageContent.append(_render(weekTemplate));
 	}
 
 	function addListeners() {
 
-		// grab template
-		var intervalTemplate = $("#interval-template").html();
-
 		// attach listeners to "add" buttons
 		_.each($constants.DAY_ABBRS, function(abbr){
 
-			var intervalList = $(_sprintf("#interval-list-%s", abbr));
 			$(_sprintf("#interval-submit-%s", abbr)).click(function(){
 
-				var intvl = _interval(abbr);
-				intervalList.append(_render(intervalTemplate, {interval: intvl}));
+				var interval = _interval(abbr);
+				intsByDay[abbr].push(interval);
+				_renderIntervals(abbr);
+				_renderDayTotal(abbr);
+				_renderWeekTotal();
 
 			});
 
@@ -215,14 +315,14 @@ var $disp = (function() {
 	}
 
 	return {
-		createDayDivs: createDayDivs,
+		initialPageRender: initialPageRender,
 		addListeners: addListeners
 	};
 
 })();
 
 var $tc_test = (function(){
-	var TEST = true;
+	var TEST = false;
 	var ALERT_IF_PASSED = false;
 
 	function assert(caseName, expected, expression) {
@@ -271,6 +371,6 @@ var $tc_test = (function(){
 })();
 
 if (!($tc_test.TEST && $tc_test.runTests())){
-	$($disp.createDayDivs);
+	$($disp.initialPageRender);
 	$($disp.addListeners);
 }

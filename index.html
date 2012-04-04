@@ -4,6 +4,8 @@
 
 		<title>Time Converter</title>
 
+		<link rel="stylesheet" type="text/css" href="styles/timeconvert.css">
+
 		<script type="text/javascript" src="scripts/underscore-1.3.1.js"></script>
 		<script type="text/javascript" src="scripts/underscore.string-2.0.0.js"></script>
 		<script type="text/javascript" src="scripts/mustache.js"></script>
@@ -48,9 +50,22 @@
 
 			<div class="day" id="day-{{dayAbbr}}">
 				<span class="day-name">{{dayName}}</span>
-				<span class="day-total" id="day-total-{{dayAbbr}}"></span>
+				<span class="day-total" id="day-total-{{dayAbbr}}">
+					(<span id="day-total-value-{{dayAbbr}}">0</span> hrs)
+				</span>
 				<ul class="interval-list" id="interval-list-{{dayAbbr}}"></ul>
 				<div class="interval-input" id="interval-input-{{dayAbbr}}"></div>
+			</div>
+
+		</script>
+
+		<script type="text/template" id="week-total-template">
+
+			<div id="week">
+				Grand total for week:
+				<span id="week-total">
+					<span id="week-total-value">0</span> hrs
+				</span>
 			</div>
 
 		</script>
